@@ -343,7 +343,9 @@ defmodule QuantumBillingWeb.SettingsLiveTest do
       assert Settings.get_organization().default_gst_rate == 28
     end
 
-    test "tax switches only offer implemented options and hide unimplemented cess and tds", %{conn: conn} do
+    test "tax switches only offer implemented options and hide unimplemented cess and tds", %{
+      conn: conn
+    } do
       {:ok, view, html} = live(conn, ~p"/settings/tax")
 
       # Composition scheme switch is functional and kept
