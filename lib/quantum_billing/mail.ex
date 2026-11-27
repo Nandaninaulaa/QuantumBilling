@@ -32,9 +32,13 @@ defmodule QuantumBilling.Mail do
   end
 
   def deliver(%Swoosh.Email{} = email, %Organization{} = organization) do
-    case Mailer.deliver(email, smtp_config(organization)) do
-      {:ok, metadata} -> {:ok, metadata}
-      {:error, reason} -> {:error, error_message(reason)}
+    with {:ok, config} <- delivery_config(organization) do
+      case Mailer.deliver(email, config) do
+        {:ok, metadata} -> {:ok, metadata}
+        {:error, reason} -> {:error, error_message(reason)}
+      end
+    else
+      {:error, message} -> {:error, message}
     end
   rescue
     # gen_smtp raises on some option and DNS failures.
@@ -53,41 +57,56 @@ defmodule QuantumBilling.Mail do
         []
 
       host ->
-        with {:ok, relay} <- safe_relay_host(host) do
-          port = organization.smtp_port || 587
-          implicit_tls? = organization.smtp_ssl == true or port == 465
-          tls = tls_options(host)
+        port = organization.smtp_port || 587
+        implicit_tls? = organization.smtp_ssl == true or port == 465
+        tls = tls_options(host)
 
-          [
-            adapter: Swoosh.Adapters.SMTP,
-            relay: relay,
-            port: port,
-            username: presence(organization.smtp_username),
-            password: presence(organization.smtp_password),
-            # Implicit TLS on 465; required STARTTLS elsewhere.
-            ssl: implicit_tls?,
-            tls: if(implicit_tls?, do: :never, else: :always),
-            tls_options: tls,
-            sockopts: if(implicit_tls?, do: tls, else: []),
-            auth: if(presence(organization.smtp_username), do: :always, else: :never),
-            no_mx_lookups: true,
-            timeout: @connect_timeout_ms,
-            # Oban handles retries.
-            retries: 0
-          ]
-          |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-        else
-          {:error, _reason} -> []
-        end
+        [
+          adapter: Swoosh.Adapters.SMTP,
+          relay: host,
+          port: port,
+          username: presence(organization.smtp_username),
+          password: presence(organization.smtp_password),
+          # Implicit TLS on 465; required STARTTLS elsewhere.
+          ssl: implicit_tls?,
+          tls: if(implicit_tls?, do: :never, else: :always),
+          tls_options: tls,
+          sockopts: if(implicit_tls?, do: tls, else: []),
+          auth: if(presence(organization.smtp_username), do: :always, else: :never),
+          no_mx_lookups: true,
+          timeout: @connect_timeout_ms,
+          # Oban handles retries.
+          retries: 0
+        ]
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     end
   end
 
   def smtp_config(_no_organization), do: []
 
-  defp safe_relay_host(host) do
-    if UrlGuard.private_smtp_relays_allowed?(),
-      do: {:ok, host},
-      else: UrlGuard.pin_host(host)
+  defp delivery_config(%Organization{} = organization) do
+    config = smtp_config(organization)
+
+    cond do
+      config == [] ->
+        {:ok, []}
+
+      not UrlGuard.smtp_port_allowed?(organization.smtp_port || 587) ->
+        {:error, private_relay_error()}
+
+      UrlGuard.private_smtp_relays_allowed?() ->
+        {:ok, config}
+
+      true ->
+        case UrlGuard.pin_host(presence(organization.smtp_host)) do
+          {:ok, address} -> {:ok, Keyword.put(config, :relay, address)}
+          {:error, _message} -> {:error, private_relay_error()}
+        end
+    end
+  end
+
+  defp private_relay_error do
+    "The SMTP host or port is not allowed. Ask the operator to set SMTP_ALLOW_PRIVATE_RELAY=true, or use a public relay on port 25, 465, 587 or 2525."
   end
 
   # A username without a password can't authenticate; use the app mailer instead.

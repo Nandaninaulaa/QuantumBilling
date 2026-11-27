@@ -117,6 +117,7 @@ defmodule QuantumBilling.Webhooks.UrlGuardTest do
     test "refuses what is not a URL at all" do
       assert {:error, _} = UrlGuard.check("not a url")
       assert {:error, _} = UrlGuard.check("https://")
+      assert {:error, _} = UrlGuard.check("https:/hooks")
       assert {:error, _} = UrlGuard.check("")
       assert {:error, _} = UrlGuard.check(nil)
       assert {:error, _} = UrlGuard.check(42)

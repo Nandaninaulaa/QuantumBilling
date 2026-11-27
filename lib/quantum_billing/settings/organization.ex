@@ -276,9 +276,7 @@ defmodule QuantumBilling.Settings.Organization do
     |> cast(attrs, @smtp)
     |> keep_stored_secrets()
     |> trim(@smtp)
-    |> validate_inclusion(:smtp_port, [25, 465, 587, 2525],
-      message: "must be one of 25, 465, 587 or 2525"
-    )
+    |> validate_smtp_port()
     |> validate_format(:smtp_from_email, ~r/^[^@,;\s]+@[^@,;\s]+$/,
       message: "must have the @ sign and no spaces"
     )
@@ -371,6 +369,22 @@ defmodule QuantumBilling.Settings.Organization do
           :ok -> changeset
           {:error, message} -> add_error(changeset, :smtp_host, message)
         end
+    end
+  end
+
+  defp validate_smtp_port(changeset) do
+    changeset =
+      validate_number(changeset, :smtp_port,
+        greater_than: 0,
+        less_than_or_equal_to: 65_535
+      )
+
+    if UrlGuard.private_smtp_relays_allowed?() or not changeset.valid? do
+      changeset
+    else
+      validate_inclusion(changeset, :smtp_port, [25, 465, 587, 2525],
+        message: "must be one of 25, 465, 587 or 2525"
+      )
     end
   end
 

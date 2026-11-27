@@ -84,11 +84,17 @@ defmodule QuantumBilling.Webhooks.UrlGuard do
 
   @doc "Whether the operator explicitly enabled private per-business SMTP relays."
   def private_smtp_relays_allowed? do
-    Application.get_env(:quantum_billing, :smtp_allow_private_relay, false) or
-      String.downcase(System.get_env("SMTP_ALLOW_PRIVATE_RELAY") || "") == "true"
+    Application.get_env(:quantum_billing, :smtp_allow_private_relay, false) == true
   end
 
-  defp check_host_name(host) do
+  @doc "Whether the port is an SMTP port allowed by the operator's relay policy."
+  def smtp_port_allowed?(port) when is_integer(port) and port in 1..65_535 do
+    private_smtp_relays_allowed?() or port in [25, 465, 587, 2525]
+  end
+
+  def smtp_port_allowed?(_port), do: false
+
+  defp check_host_name(host) when is_binary(host) and host != "" do
     if String.ends_with?(host, [".internal", ".local", ".localdomain"]) or
          host in ["localhost", "metadata.google.internal"] do
       {:error, "cannot point inside the server's own network"}
@@ -96,6 +102,8 @@ defmodule QuantumBilling.Webhooks.UrlGuard do
       :ok
     end
   end
+
+  defp check_host_name(_host), do: {:error, "must include a hostname"}
 
   @resolve_timeout_ms 2_000
 
