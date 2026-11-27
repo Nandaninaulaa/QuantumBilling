@@ -173,6 +173,12 @@ defmodule QuantumBillingWeb.QuotationNewLive do
          |> put_flash(:error, "Please fix the highlighted fields.")
          |> assign_form(changeset)}
 
+      {:error, :stale_revision} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "This quotation changed while you were editing. Reload it and review the latest version.")
+         |> push_navigate(to: ~p"/quotations/#{socket.assigns.quotation}")}
+
       {:error, :locked} ->
         {:noreply,
          socket
@@ -249,6 +255,14 @@ defmodule QuantumBillingWeb.QuotationNewLive do
       </.header>
 
       <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div
+          :if={@quotation.status == "Sent"}
+          class="alert alert-warning lg:col-span-3"
+          role="status"
+        >
+          Saving edits creates a new quotation revision. Anyone with an open client link will see the
+          updated version and must review it before answering.
+        </div>
         <.form
           :let={f}
           for={@form}
