@@ -19,6 +19,7 @@ defmodule QuantumBilling.Mail do
   alias QuantumBilling.Repo
   alias QuantumBilling.Settings
   alias QuantumBilling.Settings.Organization
+  alias QuantumBilling.Webhooks.UrlGuard
 
   @connect_timeout_ms 15_000
   @default_sender_email "invoices@quantumbilling.in"
@@ -52,32 +53,42 @@ defmodule QuantumBilling.Mail do
         []
 
       host ->
-        port = organization.smtp_port || 587
-        implicit_tls? = organization.smtp_ssl == true or port == 465
-        tls = tls_options(host)
+        with {:ok, relay} <- safe_relay_host(host) do
+          port = organization.smtp_port || 587
+          implicit_tls? = organization.smtp_ssl == true or port == 465
+          tls = tls_options(host)
 
-        [
-          adapter: Swoosh.Adapters.SMTP,
-          relay: host,
-          port: port,
-          username: presence(organization.smtp_username),
-          password: presence(organization.smtp_password),
-          # Implicit TLS on 465; required STARTTLS elsewhere.
-          ssl: implicit_tls?,
-          tls: if(implicit_tls?, do: :never, else: :always),
-          tls_options: tls,
-          sockopts: if(implicit_tls?, do: tls, else: []),
-          auth: if(presence(organization.smtp_username), do: :always, else: :never),
-          no_mx_lookups: true,
-          timeout: @connect_timeout_ms,
-          # Oban handles retries.
-          retries: 0
-        ]
-        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+          [
+            adapter: Swoosh.Adapters.SMTP,
+            relay: relay,
+            port: port,
+            username: presence(organization.smtp_username),
+            password: presence(organization.smtp_password),
+            # Implicit TLS on 465; required STARTTLS elsewhere.
+            ssl: implicit_tls?,
+            tls: if(implicit_tls?, do: :never, else: :always),
+            tls_options: tls,
+            sockopts: if(implicit_tls?, do: tls, else: []),
+            auth: if(presence(organization.smtp_username), do: :always, else: :never),
+            no_mx_lookups: true,
+            timeout: @connect_timeout_ms,
+            # Oban handles retries.
+            retries: 0
+          ]
+          |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        else
+          {:error, _reason} -> []
+        end
     end
   end
 
   def smtp_config(_no_organization), do: []
+
+  defp safe_relay_host(host) do
+    if UrlGuard.private_smtp_relays_allowed?(),
+      do: {:ok, host},
+      else: UrlGuard.pin_host(host)
+  end
 
   # A username without a password can't authenticate; use the app mailer instead.
   defp usable_relay(%Organization{} = organization) do
