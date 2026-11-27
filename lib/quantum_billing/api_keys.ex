@@ -30,6 +30,19 @@ defmodule QuantumBilling.ApiKeys do
     )
   end
 
+  @doc "How many unrevoked keys `user` created for `business`."
+  def count_active_keys(%Business{id: business_id}, user_id) do
+    Repo.aggregate(
+      from(k in ApiKey,
+        where:
+          k.business_id == ^business_id and k.created_by_id == ^user_id and
+            is_nil(k.revoked_at)
+      ),
+      :count,
+      :id
+    )
+  end
+
   @doc "A key of `business` by id, or `nil` — also when the id is another business's key."
   def get_key(%Business{id: business_id}, id) do
     case Integer.parse(to_string(id)) do
@@ -90,7 +103,10 @@ defmodule QuantumBilling.ApiKeys do
            Repo.one(
              from k in ApiKey,
                join: b in assoc(k, :business),
+               join: m in QuantumBilling.Businesses.Membership,
+               on: m.business_id == k.business_id and m.user_id == k.created_by_id,
                where: k.hashed_key == ^ApiKey.hash(raw) and is_nil(b.archived_at),
+               where: m.role == "owner",
                preload: [business: b]
            ),
          true <- ApiKey.usable?(key) do
