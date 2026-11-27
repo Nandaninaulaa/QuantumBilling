@@ -39,6 +39,23 @@ defmodule QuantumBilling.ApiKeysTest do
 
       assert errors_on(changeset).expires_at != []
     end
+
+    test "refuses issuance after the creator loses owner access" do
+      business = Businesses.default!()
+      former_owner = owner_fixture()
+      _remaining_owner = owner_fixture()
+      assert {:ok, _} = Accounts.set_role(business, former_owner, "staff")
+
+      assert {:error, changeset} =
+               ApiKeys.create_key(
+                 %{"name" => "Too late", "scopes" => ["invoices:read"]},
+                 former_owner,
+                 business
+               )
+
+      assert errors_on(changeset).name == ["only a current business owner can issue API keys"]
+      assert ApiKeys.count_active_keys(business, former_owner.id) == 0
+    end
   end
 
   describe "authenticate/1" do
