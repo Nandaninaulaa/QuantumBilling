@@ -55,8 +55,8 @@ defmodule QuantumBilling.Events do
   """
   def invoice_templates_topic, do: business_topic("invoice_templates")
 
-  @doc "Quotation content or status changed, including links currently open by clients."
-  def quotations_topic, do: business_topic("quotations")
+  @doc "Changes to one quotation, for its public answer page."
+  def quotation_topic(quotation_id), do: business_topic("quotation:#{quotation_id}")
 
   @doc "One user's own account details, keyed by user id."
   def user_topic(user_id), do: "user:#{user_id}"

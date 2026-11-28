@@ -36,7 +36,7 @@ defmodule QuantumBillingWeb.PublicQuotationLive do
         {:ok, gone(socket)}
 
       quotation ->
-        if connected?(socket), do: Events.subscribe(Events.quotations_topic())
+        if connected?(socket), do: Events.subscribe(Events.quotation_topic(quotation.id))
 
         {:ok,
          socket

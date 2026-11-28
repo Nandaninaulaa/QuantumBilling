@@ -418,13 +418,17 @@ defmodule QuantumBilling.Quotations do
     do: Webhooks.publish("quotation.declined", quotation.id)
 
   defp acceptance_audit_details(%Quotation{status: "Accepted"} = quotation) do
-    %{accepted_revision: quotation.accepted_revision, accepted_total: quotation.accepted_total}
+    %{
+      accepted_revision: quotation.accepted_revision,
+      accepted_total: quotation.accepted_total,
+      currency: quotation.currency
+    }
   end
 
   defp acceptance_audit_details(_quotation), do: %{}
 
   defp broadcast_quotation_changed(%Quotation{} = quotation) do
-    Events.broadcast(Events.quotations_topic(),
+    Events.broadcast(Events.quotation_topic(quotation.id),
       {:quotation_changed, quotation.id, quotation.revision, quotation.status}
     )
   end

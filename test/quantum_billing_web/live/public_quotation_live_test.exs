@@ -91,7 +91,21 @@ defmodule QuantumBillingWeb.PublicQuotationLiveTest do
   test "an answer given elsewhere since the page opened is not overwritten",
        %{conn: conn, quotation: quotation} do
     {:ok, view, _html} = live(conn, PublicQuotationLive.path(quotation.public_token))
-    Repo.update!(Ecto.Changeset.change(quotation, remarks: "Revised", revision: quotation.revision + 1))
+    {:ok, _declined} = Quotations.decline(@actor, quotation)
+
+    render_click(view, "accept", %{"revision" => to_string(quotation.revision)})
+
+    assert has_element?(view, "#public-quotation-error")
+    assert has_element?(view, "#public-quotation-status", "Declined")
+    assert Quotations.get_quotation(quotation.id).status == "Declined"
+  end
+
+  test "an answer from an older quotation revision is refused",
+       %{conn: conn, quotation: quotation} do
+    {:ok, view, _html} = live(conn, PublicQuotationLive.path(quotation.public_token))
+    Repo.update!(
+      Ecto.Changeset.change(quotation, remarks: "Revised", revision: quotation.revision + 1)
+    )
 
     view |> element("#public-accept-quotation") |> render_click()
 

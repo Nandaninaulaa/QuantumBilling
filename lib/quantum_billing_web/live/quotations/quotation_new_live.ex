@@ -257,11 +257,15 @@ defmodule QuantumBillingWeb.QuotationNewLive do
       <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <div
           :if={@quotation.status == "Sent"}
-          class="alert alert-warning lg:col-span-3"
+          id="quotation-revision-warning"
+          class="lg:col-span-3 flex items-start gap-2 rounded-field border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-base-content/80"
           role="status"
         >
-          Saving edits creates a new quotation revision. Anyone with an open client link will see the
-          updated version and must review it before answering.
+          <.icon name="hero-information-circle" class="mt-0.5 size-4 shrink-0 text-warning" />
+          <p>
+            Saving edits creates a new quotation revision. Anyone with an open client link will see
+            the updated version and must review it before answering.
+          </p>
         </div>
         <.form
           :let={f}

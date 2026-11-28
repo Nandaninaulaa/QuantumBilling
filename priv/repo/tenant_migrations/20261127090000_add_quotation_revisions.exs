@@ -10,7 +10,7 @@ defmodule QuantumBilling.Repo.TenantMigrations.AddQuotationRevisions do
     end
 
     execute """
-    UPDATE quotations
+    UPDATE "#{prefix()}".quotations
     SET accepted_revision = revision,
         accepted_total = grand_total,
         accepted_at = updated_at
